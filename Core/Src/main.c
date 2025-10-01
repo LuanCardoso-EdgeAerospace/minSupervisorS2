@@ -73,27 +73,85 @@ static void MX_LPUART2_UART_Init(void);
 /* USER CODE BEGIN 0 */
 
 enum SUPERVISOR_STATE { S_HOLD, S_RELEASE };
+#define STEP_DELAY 200
+#define HCF() for(;;) /*HALT AND CATCH FIRE*/
+#define UART_LOG(...)
 
 void powerUpSequence(){
 	/* toggle GPIO for all power rails, in order, with wait times */
+	HAL_GPIO_WritePin(MAIN_PWR_EN_GPIO_Port, MAIN_PWR_EN_Pin, GPIO_PIN_SET); HAL_Delay(STEP_DELAY);
+	HAL_GPIO_WritePin(_12V0P_EN_GPIO_Port, _12V0P_EN_Pin, GPIO_PIN_SET);     HAL_Delay(STEP_DELAY);
+	HAL_GPIO_WritePin(CPU_3V3P_EN_GPIO_Port, CPU_3V3P_EN_Pin, GPIO_PIN_SET); HAL_Delay(STEP_DELAY);
+	HAL_GPIO_WritePin(_5V0P_EN_GPIO_Port, _5V0P_EN_Pin, GPIO_PIN_SET);       HAL_Delay(STEP_DELAY);
+
+	HAL_GPIO_WritePin(PMIC_EN_GPIO_Port, PMIC_EN_Pin, GPIO_PIN_SET);         HAL_Delay(STEP_DELAY);
+	UART_LOG("Power up sequence finished\n");
+
 	return;
 }
 
 void powerDownSequence(){
-	/* Reverse the GPIO enable for the power circuits */
+	/* Reverse the power up sequence */
+	UART_LOG("Power down started\n");
+
+	HAL_GPIO_WritePin(PMIC_EN_GPIO_Port, PMIC_EN_Pin, GPIO_PIN_RESET);         HAL_Delay(STEP_DELAY);
+
+	HAL_GPIO_WritePin(_5V0P_EN_GPIO_Port, _5V0P_EN_Pin, GPIO_PIN_RESET);       HAL_Delay(STEP_DELAY);
+	HAL_GPIO_WritePin(CPU_3V3P_EN_GPIO_Port, CPU_3V3P_EN_Pin, GPIO_PIN_RESET); HAL_Delay(STEP_DELAY);
+	HAL_GPIO_WritePin(_12V0P_EN_GPIO_Port, _12V0P_EN_Pin, GPIO_PIN_RESET);     HAL_Delay(STEP_DELAY);
+	HAL_GPIO_WritePin(MAIN_PWR_EN_GPIO_Port, MAIN_PWR_EN_Pin, GPIO_PIN_RESET); HAL_Delay(STEP_DELAY);
+
+	UART_LOG("Power down sequence finished\n");
 	return;
 }
 
-int checkPowerGood(){
-	/* Sample all the power_good signals */
-	return 1;
+GPIO_PinState checkPowerGood(){
+	/* Sample all the powerw_good signals*/
+	GPIO_PinState pg = GPIO_PIN_SET;
+
+	pg &= HAL_GPIO_ReadPin(_12V0P_EN_GPIO_Port, _12V0P_EN_Pin);
+	pg &= HAL_GPIO_ReadPin(CPU_3V3P_PG_GPIO_Port, CPU_3V3P_PG_Pin);
+	pg &= HAL_GPIO_ReadPin(CPU_1V2P_PG_GPIO_Port, CPU_1V2P_PG_Pin);
+	pg &= HAL_GPIO_ReadPin(CPU_DDR_PG_GPIO_Port, CPU_DDR_PG_Pin);
+	pg &= HAL_GPIO_ReadPin(CPU_CORE_1V0P_PG_GPIO_Port, CPU_CORE_1V0P_PG_Pin);
+	//TODO: Missing PMIC?
+	HAL_Delay(STEP_DELAY);
+	return pg;
 }
 
-void RCW(enum SUPERVISOR_STATE state){
+void RCW(GPIO_PinState PinState){
+    unsigned char RCWidx = 0x00;
+#define GET_BIT(c, n) (((c) >> (n)) & 1)
+#define RCW_BIT(c, n) ( GET_BIT(c, n)? GPIO_PIN_SET: GPIO_PIN_RESET)
+
+    HAL_GPIO_WritePin(CFG_RCW_SRC0_D_GPIO_Port, CFG_RCW_SRC0_D_Pin, PinState & RCW_BIT(RCWidx, 0));
+    HAL_GPIO_WritePin(CFG_RCW_SRC1_D_GPIO_Port, CFG_RCW_SRC1_D_Pin, PinState & RCW_BIT(RCWidx, 1));
+    HAL_GPIO_WritePin(CFG_RCW_SRC2_D_GPIO_Port, CFG_RCW_SRC2_D_Pin, PinState & RCW_BIT(RCWidx, 2));
+    HAL_GPIO_WritePin(CFG_RCW_SRC3_D_GPIO_Port, CFG_RCW_SRC3_D_Pin, PinState & RCW_BIT(RCWidx, 3));
+
+	HAL_Delay(STEP_DELAY);
+	return;
+
+#undef GET_BIT
+#undef RCW_BIT
+}
+
+void MCU_RST(GPIO_PinState PinState){
+	HAL_GPIO_WritePin(MCU_PORESET_B_GPIO_Port, MCU_PORESET_B_Pin, PinState);
+	HAL_GPIO_WritePin(MCU_HRESET_B_GPIO_Port, MCU_HRESET_B_Pin, pinstate);
+	HAL_GPIO_WritePin(MCU_RESET_REQ_B_GPIO_Port, MCU_RESET_REQ_B_Pin, PinState);
+	HAL_GPIO_WritePin(MCU_DRR4_RST_N_GPIO_Port, MCU_DRR4_RST_N_Pin, PinState);
+	HAL_GPIO_WritePin(MCU_eMMC_RST_N_GPIO_Port, MCU_eMMC_RST_N_Pin, PinState);
+	HAL_GPIO_WritePin(MCU_NOR_RST_N_GPIO_Port, MCU_NOR_RST_N_Pin, PinState);
+
+	UART_LOG("reset high\n");
+	HAL_Delay(STEP_DELAY);
 	return;
 }
 
-void MCU_RST(enum SUPERVISOR_STATE state){
+void enableClocks(){
+	HAL_GPIO_WritePin(SYS_CLK_EN_MCU_GPIO_Port, SYS_CLK_EN_MCU_Pin, GPIO_PIN_SET);
+	HAL_Delay(STEP_DELAY);
 	return;
 }
 
@@ -142,11 +200,37 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
+  /* Powerup
+   */
+  MCU_RST(S_HOLD);
+  powerUpSequence();
+  if (!checkPowerGood()){
+	  powerDownSequence();
+	  //TODO: ERROR LED
+//	  HAL_PWR_EnterSHUTDOWNMode();
+	  HCF();
+  }
+
+  /*Set RCW*/
+  RCW(S_HOLD);
+  enableClocks();
+  MCU_RST(S_RELEASE);
+  RCW(S_RELEASE);
+
+  //TODO: Success LED
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  if (!checkPowerGood()){
+		  powerDownSequence();
+		  //TODO: ERROR LED
+//		  HAL_PWR_EnterSHUTDOWNMode();
+		  HCF();
+	  }
+	  HAL_Delay(STEP_DELAY);
   }
   /* USER CODE END 3 */
 }
