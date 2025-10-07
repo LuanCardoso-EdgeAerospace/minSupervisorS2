@@ -7,4 +7,6 @@ supply power, set RCW and reset the Layerscape core.
 Afterwards, it enters a loop and will check for _power good_ on 
 all the rails, and turn off everything on a power failure.
 
-For de implementation of the full supervisor, check the repository `supervisorDemo`. 
+For de implementation of the full supervisor, check the repository `supervisorDemo`.
+
+
