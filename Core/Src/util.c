@@ -5,8 +5,8 @@
  *      Author: luan
  */
 
-#include "util.h"
 #include "main.h"
+#include "util.h"
 
 extern UART_HandleTypeDef hlpuart1;
 extern ADC_HandleTypeDef hadc1;
@@ -18,11 +18,6 @@ extern ADC_HandleTypeDef hadc1;
 #ifndef LOG_LINE_BUF
 #define LOG_LINE_BUF 128 //buffer for writing. Try to not make writes too long
 #endif
-
-#ifndef HCF
-#define HCF() for(;;) /*HALT AND CATCH FIRE*/
-#endif
-
 /* Hook points: you will replace these later with DMA/ring-buffer code */
 static void log_backend_write_blocking(const uint8_t *p, uint16_t n) {
   if (n == 0) return;
@@ -49,7 +44,6 @@ void log_printf(const char *fmt, ...){
 
 //busywait for a button to be pressed
 void waitBtnPress(){
-	unsigned char btnState;
 	const int DEBOUNCE_DELAY = 20;
 	//red LED to signal
 	HAL_GPIO_WritePin(STATUS_LED2_RED_GPIO_Port, STATUS_LED2_RED_Pin, GPIO_PIN_SET);
@@ -85,7 +79,7 @@ uint16_t ADC_IN0(){
 	}
 
 	HAL_ADC_Start(&hadc1);
-	HAL_ADC_PollForConversion(&hadc1, 100);
+	HAL_ADC_PollForConversion(&hadc1, ADCTimeout);
 	uint16_t value = HAL_ADC_GetValue(&hadc1);
 	HAL_ADC_Stop(&hadc1);
 
@@ -103,9 +97,48 @@ uint16_t ADC_IN1(){
 	}
 
 	HAL_ADC_Start(&hadc1);
-	HAL_ADC_PollForConversion(&hadc1, 100);
+	HAL_ADC_PollForConversion(&hadc1, ADCTimeout);
 	uint16_t value = HAL_ADC_GetValue(&hadc1);
 	HAL_ADC_Stop(&hadc1);
 
     return value;
 }
+
+#define REDON(n) do{ \
+					 HAL_GPIO_WritePin(STATUS_LED2_RED_GPIO_Port, STATUS_LED2_RED_Pin, GPIO_PIN_SET); \
+					 HAL_Delay(n); \
+					 HAL_GPIO_WritePin(STATUS_LED2_RED_GPIO_Port, STATUS_LED2_RED_Pin, GPIO_PIN_RESET);\
+				}while(0)
+
+void HCF(void){
+/* Function to be called when you want to enter an infinite loop. Will blink the red LED */
+	log_printf("WARNING: An exception was caught! Power cycle necessary.");
+	const int onPeriod=100, offShort=200, offLong=600;
+	do{
+	REDON(onPeriod); HAL_Delay(offShort);
+	REDON(onPeriod); HAL_Delay(offLong);
+	}while(1);
+
+#undef REDON
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

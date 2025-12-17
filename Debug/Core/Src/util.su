@@ -1,3 +1,8 @@
 ../Core/Src/util.c:22:13:log_backend_write_blocking	16	static
 ../Core/Src/util.c:27:6:log_write	16	static
 ../Core/Src/util.c:31:6:log_printf	152	static
+../Core/Src/util.c:46:6:waitBtnPress	16	static
+../Core/Src/util.c:61:5:waitSignalTimeout	32	static
+../Core/Src/util.c:71:10:ADC_IN0	32	static
+../Core/Src/util.c:89:10:ADC_IN1	32	static
+../Core/Src/util.c:113:6:HCF	24	static

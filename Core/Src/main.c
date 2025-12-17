@@ -123,7 +123,6 @@ void powerUpSequence(){
 	  log_printf("_5V0P_PG asserted\n");
   }
 
-  log_printf("Checking power good on automatic rails:\n");
 
   log_printf("Press button to enable PMIC Power\n");
   waitBtnPress();
@@ -135,8 +134,29 @@ void powerUpSequence(){
 	  log_printf("PMIC_POR_B asserted\n");
   }
 
+  //-------------------------------------------------------------------------------------//
 
-	log_printf("Power up sequence finished!\n");
+  log_printf("Checking power good on automatic rails:\n");
+
+  if (!waitSignalTimeout(CPU_1V2P_PG_GPIO_Port, CPU_1V2P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
+	  log_printf("timeout on CPU_1V2P_PG! \n HCF!\n"); HCF();
+  } else {
+	  log_printf("CPU_1V2P_PG asserted\n");
+  }
+
+  if (!waitSignalTimeout(CPU_CORE_1V0P_PG_GPIO_Port, CPU_CORE_1V0P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
+	  log_printf("timeout on CPU_CORE_1V0P_PG! \n HCF!\n"); HCF();
+  } else {
+	  log_printf("CPU_CORE_1V0P_PG asserted\n");
+  }
+
+  if (!waitSignalTimeout(CPU_DDR_PG_GPIO_Port, CPU_DDR_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
+	  log_printf("timeout on CPU_DDR_PG! \n HCF!\n"); HCF();
+  } else {
+	  log_printf("CPU_DDR_PG asserted\n");
+  }
+
+  log_printf("Power up sequence finished!\n");
 
 	return;
 }
@@ -144,39 +164,42 @@ void powerUpSequence(){
 void powerDownSequence(){
 	/* Reverse the power up sequence */
 	log_printf("Power down started\n");
-
-	HAL_GPIO_WritePin(PMIC_EN_GPIO_Port, PMIC_EN_Pin, GPIO_PIN_RESET);         log_printf("PMIC disabled \n"); HAL_Delay(STEP_DELAY);
-
-	HAL_GPIO_WritePin(_5V0P_EN_GPIO_Port, _5V0P_EN_Pin, GPIO_PIN_RESET);       log_printf("5V    power off\n"); HAL_Delay(STEP_DELAY);
-	HAL_GPIO_WritePin(CPU_3V3P_EN_GPIO_Port, CPU_3V3P_EN_Pin, GPIO_PIN_RESET); log_printf("3V3   power off\n"); HAL_Delay(STEP_DELAY);
-	HAL_GPIO_WritePin(_12V0P_EN_GPIO_Port, _12V0P_EN_Pin, GPIO_PIN_RESET);     log_printf("12V   power off\n"); HAL_Delay(STEP_DELAY);
-	HAL_GPIO_WritePin(MAIN_PWR_EN_GPIO_Port, MAIN_PWR_EN_Pin, GPIO_PIN_RESET); log_printf("Main  power off\n"); HAL_Delay(STEP_DELAY);
+	const int POWER_DOWN_DELAY = 50; //ms
+	// WARN: Ordering of the powerdown is important!
+	HAL_GPIO_WritePin(PMIC_EN_GPIO_Port, PMIC_EN_Pin, GPIO_PIN_RESET);         log_printf("PMIC  disabled \n"); HAL_Delay(POWER_DOWN_DELAY);
+	HAL_GPIO_WritePin(CPU_3V3P_EN_GPIO_Port, CPU_3V3P_EN_Pin, GPIO_PIN_RESET); log_printf("3V3   power off\n"); HAL_Delay(POWER_DOWN_DELAY);
+	HAL_GPIO_WritePin(_5V0P_EN_GPIO_Port, _5V0P_EN_Pin, GPIO_PIN_RESET);       log_printf("5V    power off\n"); HAL_Delay(POWER_DOWN_DELAY);
+	HAL_GPIO_WritePin(_12V0P_EN_GPIO_Port, _12V0P_EN_Pin, GPIO_PIN_RESET);     log_printf("12V   power off\n"); HAL_Delay(POWER_DOWN_DELAY);
+	HAL_GPIO_WritePin(MAIN_PWR_EN_GPIO_Port, MAIN_PWR_EN_Pin, GPIO_PIN_RESET); log_printf("Main  power off\n"); HAL_Delay(POWER_DOWN_DELAY);
 
 	log_printf("Power down sequence finished!\n");
 	return;
 }
 
 GPIO_PinState checkPowerGood(){
-	/* Sample all the powerw_good signals*/
+	/* Sample all the power good signals*/
 	GPIO_PinState pg = GPIO_PIN_SET;
 
-	pg &= HAL_GPIO_ReadPin(_12V0P_EN_GPIO_Port, _12V0P_EN_Pin);
+	pg &= HAL_GPIO_ReadPin(MAIN_12V0P_PG_GPIO_Port, MAIN_12V0P_PG_Pin);
 	pg &= HAL_GPIO_ReadPin(CPU_3V3P_PG_GPIO_Port, CPU_3V3P_PG_Pin);
+	pg &= HAL_GPIO_ReadPin(_5V0P_PG_GPIO_Port, _5V0P_PG_Pin);
+	pg &= HAL_GPIO_ReadPin(PMIC_POR_B_GPIO_Port, PMIC_POR_B_Pin);
+
 	pg &= HAL_GPIO_ReadPin(CPU_1V2P_PG_GPIO_Port, CPU_1V2P_PG_Pin);
-	pg &= HAL_GPIO_ReadPin(CPU_DDR_PG_GPIO_Port, CPU_DDR_PG_Pin);
 	pg &= HAL_GPIO_ReadPin(CPU_CORE_1V0P_PG_GPIO_Port, CPU_CORE_1V0P_PG_Pin);
-	//TODO: Missing PMIC?
+	pg &= HAL_GPIO_ReadPin(CPU_DDR_PG_GPIO_Port, CPU_DDR_PG_Pin);
+
 	HAL_Delay(STEP_DELAY);
 	return pg;
-	//TODO: Report individual status for logging.
 }
 
-void RCW(GPIO_PinState PinState){
+void RCW(enum SUPERVISOR_STATE PinState){
 	static unsigned char ttable[]={0x0, 0x8, 0x9, 0xa, 0xd, 0xf, 0x00, 0x00};
-	unsigned char dipState = 0xf; //When issuing a reset, we expect all the RCW pins to go to 1
+	unsigned char dipState = 0xf; //When the power up procedure is finished, and the RCW is not needed
+	                              //all the pins are set to 1.
 
-	if(PinState == GPIO_PIN_SET ){
-		unsigned char dipState =   HAL_GPIO_ReadPin(CFG1_GPIO_Port, CFG1_Pin) \
+	if(PinState == S_ASSERT ){
+		dipState =   HAL_GPIO_ReadPin(CFG1_GPIO_Port, CFG1_Pin) \
 								 | HAL_GPIO_ReadPin(CFG2_GPIO_Port, CFG2_Pin) << 1 \
 								 | HAL_GPIO_ReadPin(CFG3_GPIO_Port, CFG3_Pin) << 2;
 	}
@@ -204,7 +227,7 @@ void MCU_RST(enum SUPERVISOR_STATE state){
 
 	GPIO_PinState PinState;
 
-	if (state == S_ASSERT) PinState=GPIO_PIN_RESET;
+	if (state == S_ASSERT) PinState=GPIO_PIN_RESET; // Reset is activated on a low-voltage state.
 	else PinState=GPIO_PIN_SET;
 
 	HAL_GPIO_WritePin(MCU_PORESET_B_GPIO_Port, MCU_PORESET_B_Pin, PinState);
@@ -279,8 +302,7 @@ int main(void)
   enableClocks();
   MCU_RST(S_RELEASE);
   RCW(S_RELEASE);
-
-  //TODO: Success LED
+  unsigned int loopCounter=0;
   while (1)
   {
     /* USER CODE END WHILE */
@@ -289,10 +311,10 @@ int main(void)
 	  if (!checkPowerGood()){
 		  //TODO: PowerGood as interrupts, or moving power up sequencing into a state machine.
 		  powerDownSequence();
-		  //TODO: ERROR LED
-//		  HAL_PWR_EnterSHUTDOWNMode();
 		  HCF();
 	  }
+	  loopCounter++;
+	  HAL_GPIO_WritePin(STATUS_LED1_GREEN_GPIO_Port, STATUS_LED1_GREEN_Pin, (loopCounter >> 2)&0x1); //blink green every multiple of the counter
 	  HAL_Delay(STEP_DELAY);
   }
   /* USER CODE END 3 */
