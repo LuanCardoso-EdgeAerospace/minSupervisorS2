@@ -110,7 +110,7 @@ void HAL_ADC_MspInit(ADC_HandleTypeDef* hadc)
     PC0     ------> ADC1_IN0
     PC1     ------> ADC1_IN1
     */
-    GPIO_InitStruct.Pin = GPIO_PIN_0|I_SENSE_Pin;
+    GPIO_InitStruct.Pin = IN_VOL_MEAS_Pin|I_SENSE_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_ANALOG;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
@@ -143,7 +143,7 @@ void HAL_ADC_MspDeInit(ADC_HandleTypeDef* hadc)
     PC0     ------> ADC1_IN0
     PC1     ------> ADC1_IN1
     */
-    HAL_GPIO_DeInit(GPIOC, GPIO_PIN_0|I_SENSE_Pin);
+    HAL_GPIO_DeInit(GPIOC, IN_VOL_MEAS_Pin|I_SENSE_Pin);
 
     /* USER CODE BEGIN ADC1_MspDeInit 1 */
 
@@ -182,7 +182,7 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
     PA9     ------> I2C1_SCL
     PA10     ------> I2C1_SDA
     */
-    GPIO_InitStruct.Pin = UEFI_SCL_Pin|UEFI_SDA_Pin;
+    GPIO_InitStruct.Pin = UEFI_SCLA9_Pin|UEFI_SDAA10_Pin;
     GPIO_InitStruct.Mode = GPIO_MODE_AF_OD;
     GPIO_InitStruct.Pull = GPIO_NOPULL;
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -299,9 +299,9 @@ void HAL_I2C_MspDeInit(I2C_HandleTypeDef* hi2c)
     PA9     ------> I2C1_SCL
     PA10     ------> I2C1_SDA
     */
-    HAL_GPIO_DeInit(UEFI_SCL_GPIO_Port, UEFI_SCL_Pin);
+    HAL_GPIO_DeInit(UEFI_SCLA9_GPIO_Port, UEFI_SCLA9_Pin);
 
-    HAL_GPIO_DeInit(UEFI_SDA_GPIO_Port, UEFI_SDA_Pin);
+    HAL_GPIO_DeInit(UEFI_SDAA10_GPIO_Port, UEFI_SDAA10_Pin);
 
     /* USER CODE BEGIN I2C1_MspDeInit 1 */
 

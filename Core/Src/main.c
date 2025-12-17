@@ -21,7 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "util.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -72,36 +72,87 @@ static void MX_LPUART2_UART_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 
-enum SUPERVISOR_STATE { S_HOLD, S_RELEASE };
+enum SUPERVISOR_STATE { S_ASSERT, S_RELEASE };
 #define STEP_DELAY 200
-#define HCF() for(;;) /*HALT AND CATCH FIRE*/
-#define UART_LOG(...)
+#define UART_LOG(...) /*Should use LPUART1*/
 
 void powerUpSequence(){
-	/* toggle GPIO for all power rails, in order, with wait times */
-	HAL_GPIO_WritePin(MAIN_PWR_EN_GPIO_Port, MAIN_PWR_EN_Pin, GPIO_PIN_SET); HAL_Delay(STEP_DELAY);
-	HAL_GPIO_WritePin(_12V0P_EN_GPIO_Port, _12V0P_EN_Pin, GPIO_PIN_SET);     HAL_Delay(STEP_DELAY);
-	HAL_GPIO_WritePin(CPU_3V3P_EN_GPIO_Port, CPU_3V3P_EN_Pin, GPIO_PIN_SET); HAL_Delay(STEP_DELAY);
-	HAL_GPIO_WritePin(_5V0P_EN_GPIO_Port, _5V0P_EN_Pin, GPIO_PIN_SET);       HAL_Delay(STEP_DELAY);
+  const int POWER_GOOD_MAX_DELAY = 100; //ms
 
-	HAL_GPIO_WritePin(PMIC_EN_GPIO_Port, PMIC_EN_Pin, GPIO_PIN_SET);         HAL_Delay(STEP_DELAY);
-	UART_LOG("Power up sequence finished\n");
+  log_printf("Power up sequence started with %d ms until HCF\n", POWER_GOOD_MAX_DELAY);
+
+	log_printf("Press button to enable Main Power\n");
+  waitBtnPress();
+  HAL_GPIO_WritePin(MAIN_PWR_EN_GPIO_Port, MAIN_PWR_EN_Pin, GPIO_PIN_SET); 
+  log_printf("Main power on; PG not implemented, using max delay\n"); 
+  HAL_Delay(POWER_GOOD_MAX_DELAY);
+  //read voltage from ADC to confirm 12V rail is up.
+  log_printf("> IN_VOL_MEAS = %d\n", ADC_IN0());
+  log_printf("> I_SENSE = %d\n", ADC_IN1());
+
+
+  log_printf("Press button to enable 12V Power\n");
+  waitBtnPress();
+  HAL_GPIO_WritePin(_12V0P_EN_GPIO_Port, _12V0P_EN_Pin, GPIO_PIN_SET);     
+  log_printf("12V  power on; waiting for PowerGood signal\n"); 
+  if (!waitSignalTimeout(_12V0P_EN_GPIO_Port, MAIN_12V0P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
+	  log_printf("timeout on MAIN_12V0P_PG! \n HCF!\n"); HCF();
+  } else {
+	  log_printf("MAIN_12V0P_PG asserted\n");
+  }
+
+
+  log_printf("Press button to enable 3V3 Power\n");
+  waitBtnPress();
+  HAL_GPIO_WritePin(CPU_3V3P_EN_GPIO_Port, CPU_3V3P_EN_Pin, GPIO_PIN_SET); 
+  log_printf("3V3  power on; waiting for PowerGood signal\n"); 
+  if (!waitSignalTimeout(CPU_3V3P_PG_GPIO_Port, CPU_3V3P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
+	  log_printf("timeout on CPU_3V3P_PG! \n HCF!\n"); HCF();
+  } else {
+	  log_printf("CPU_3V3P_PG asserted\n");
+  }
+
+
+  log_printf("Press button to enable 5V Power\n");
+  waitBtnPress();
+  HAL_GPIO_WritePin(_5V0P_EN_GPIO_Port, _5V0P_EN_Pin, GPIO_PIN_SET);       
+  log_printf("5V   power on; waiting for PowerGood signal\n"); 
+  if (!waitSignalTimeout(_5V0P_PG_GPIO_Port, _5V0P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
+	  log_printf("timeout on _5V0P_PG! \n HCF!\n"); HCF();
+  } else {
+	  log_printf("_5V0P_PG asserted\n");
+  }
+
+  log_printf("Checking power good on automatic rails:\n");
+
+  log_printf("Press button to enable PMIC Power\n");
+  waitBtnPress();
+  HAL_GPIO_WritePin(PMIC_EN_GPIO_Port, PMIC_EN_Pin, GPIO_PIN_SET);         
+  log_printf("PMIC is enabled; waiting for PowerGood signal \n"); 
+  if (!waitSignalTimeout(PMIC_POR_B_GPIO_Port, PMIC_POR_B_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
+	  log_printf("timeout on PMIC_POR_B! \n HCF!\n"); HCF();
+  } else {
+	  log_printf("PMIC_POR_B asserted\n");
+  }
+
+
+	log_printf("Power up sequence finished!\n");
 
 	return;
 }
 
 void powerDownSequence(){
 	/* Reverse the power up sequence */
-	UART_LOG("Power down started\n");
+	log_printf("Power down started\n");
 
-	HAL_GPIO_WritePin(PMIC_EN_GPIO_Port, PMIC_EN_Pin, GPIO_PIN_RESET);         HAL_Delay(STEP_DELAY);
+	HAL_GPIO_WritePin(PMIC_EN_GPIO_Port, PMIC_EN_Pin, GPIO_PIN_RESET);         log_printf("PMIC disabled \n"); HAL_Delay(STEP_DELAY);
 
-	HAL_GPIO_WritePin(_5V0P_EN_GPIO_Port, _5V0P_EN_Pin, GPIO_PIN_RESET);       HAL_Delay(STEP_DELAY);
-	HAL_GPIO_WritePin(CPU_3V3P_EN_GPIO_Port, CPU_3V3P_EN_Pin, GPIO_PIN_RESET); HAL_Delay(STEP_DELAY);
-	HAL_GPIO_WritePin(_12V0P_EN_GPIO_Port, _12V0P_EN_Pin, GPIO_PIN_RESET);     HAL_Delay(STEP_DELAY);
-	HAL_GPIO_WritePin(MAIN_PWR_EN_GPIO_Port, MAIN_PWR_EN_Pin, GPIO_PIN_RESET); HAL_Delay(STEP_DELAY);
+	HAL_GPIO_WritePin(_5V0P_EN_GPIO_Port, _5V0P_EN_Pin, GPIO_PIN_RESET);       log_printf("5V    power off\n"); HAL_Delay(STEP_DELAY);
+	HAL_GPIO_WritePin(CPU_3V3P_EN_GPIO_Port, CPU_3V3P_EN_Pin, GPIO_PIN_RESET); log_printf("3V3   power off\n"); HAL_Delay(STEP_DELAY);
+	HAL_GPIO_WritePin(_12V0P_EN_GPIO_Port, _12V0P_EN_Pin, GPIO_PIN_RESET);     log_printf("12V   power off\n"); HAL_Delay(STEP_DELAY);
+	HAL_GPIO_WritePin(MAIN_PWR_EN_GPIO_Port, MAIN_PWR_EN_Pin, GPIO_PIN_RESET); log_printf("Main  power off\n"); HAL_Delay(STEP_DELAY);
 
-	UART_LOG("Power down sequence finished\n");
+	log_printf("Power down sequence finished!\n");
 	return;
 }
 
@@ -117,17 +168,30 @@ GPIO_PinState checkPowerGood(){
 	//TODO: Missing PMIC?
 	HAL_Delay(STEP_DELAY);
 	return pg;
+	//TODO: Report individual status for logging.
 }
 
 void RCW(GPIO_PinState PinState){
-    unsigned char RCWidx = 0x00;
+	static unsigned char ttable[]={0x0, 0x8, 0x9, 0xa, 0xd, 0xf, 0x00, 0x00};
+	unsigned char dipState = 0xf; //When issuing a reset, we expect all the RCW pins to go to 1
+
+	if(PinState == GPIO_PIN_SET ){
+		unsigned char dipState =   HAL_GPIO_ReadPin(CFG1_GPIO_Port, CFG1_Pin) \
+								 | HAL_GPIO_ReadPin(CFG2_GPIO_Port, CFG2_Pin) << 1 \
+								 | HAL_GPIO_ReadPin(CFG3_GPIO_Port, CFG3_Pin) << 2;
+	}
+
+    unsigned char RCW = ttable[dipState];
+    log_printf("DipSwitch state: 0x%x \n", dipState);
+    log_printf("RCW: 0x%x \n", RCW);
+
 #define GET_BIT(c, n) (((c) >> (n)) & 1)
 #define RCW_BIT(c, n) ( GET_BIT(c, n)? GPIO_PIN_SET: GPIO_PIN_RESET)
 
-    HAL_GPIO_WritePin(CFG_RCW_SRC0_D_GPIO_Port, CFG_RCW_SRC0_D_Pin, PinState & RCW_BIT(RCWidx, 0));
-    HAL_GPIO_WritePin(CFG_RCW_SRC1_D_GPIO_Port, CFG_RCW_SRC1_D_Pin, PinState & RCW_BIT(RCWidx, 1));
-    HAL_GPIO_WritePin(CFG_RCW_SRC2_D_GPIO_Port, CFG_RCW_SRC2_D_Pin, PinState & RCW_BIT(RCWidx, 2));
-    HAL_GPIO_WritePin(CFG_RCW_SRC3_D_GPIO_Port, CFG_RCW_SRC3_D_Pin, PinState & RCW_BIT(RCWidx, 3));
+    HAL_GPIO_WritePin(CFG_RCW_SRC0_D_GPIO_Port, CFG_RCW_SRC0_D_Pin, RCW_BIT(RCW, 0));
+    HAL_GPIO_WritePin(CFG_RCW_SRC1_D_GPIO_Port, CFG_RCW_SRC1_D_Pin, RCW_BIT(RCW, 1));
+    HAL_GPIO_WritePin(CFG_RCW_SRC2_D_GPIO_Port, CFG_RCW_SRC2_D_Pin, RCW_BIT(RCW, 2));
+    HAL_GPIO_WritePin(CFG_RCW_SRC3_D_GPIO_Port, CFG_RCW_SRC3_D_Pin, RCW_BIT(RCW, 3));
 
 	HAL_Delay(STEP_DELAY);
 	return;
@@ -136,15 +200,19 @@ void RCW(GPIO_PinState PinState){
 #undef RCW_BIT
 }
 
-void MCU_RST(GPIO_PinState PinState){
+void MCU_RST(enum SUPERVISOR_STATE state){
+
+	GPIO_PinState PinState;
+
+	if (state == S_ASSERT) PinState=GPIO_PIN_RESET;
+	else PinState=GPIO_PIN_SET;
+
 	HAL_GPIO_WritePin(MCU_PORESET_B_GPIO_Port, MCU_PORESET_B_Pin, PinState);
-	HAL_GPIO_WritePin(MCU_HRESET_B_GPIO_Port, MCU_HRESET_B_Pin, pinstate);
+	HAL_GPIO_WritePin(MCU_HRESET_B_GPIO_Port, MCU_HRESET_B_Pin, PinState);
 	HAL_GPIO_WritePin(MCU_RESET_REQ_B_GPIO_Port, MCU_RESET_REQ_B_Pin, PinState);
 	HAL_GPIO_WritePin(MCU_DRR4_RST_N_GPIO_Port, MCU_DRR4_RST_N_Pin, PinState);
 	HAL_GPIO_WritePin(MCU_eMMC_RST_N_GPIO_Port, MCU_eMMC_RST_N_Pin, PinState);
 	HAL_GPIO_WritePin(MCU_NOR_RST_N_GPIO_Port, MCU_NOR_RST_N_Pin, PinState);
-
-	UART_LOG("reset high\n");
 	HAL_Delay(STEP_DELAY);
 	return;
 }
@@ -201,19 +269,13 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-  /* Powerup
+  /*
+   * Power up
    */
-  MCU_RST(S_HOLD);
+  MCU_RST(S_ASSERT); log_printf("MCU reset signal asserted.");
   powerUpSequence();
-  if (!checkPowerGood()){
-	  powerDownSequence();
-	  //TODO: ERROR LED
-//	  HAL_PWR_EnterSHUTDOWNMode();
-	  HCF();
-  }
-
   /*Set RCW*/
-  RCW(S_HOLD);
+  RCW(S_ASSERT);
   enableClocks();
   MCU_RST(S_RELEASE);
   RCW(S_RELEASE);
@@ -225,6 +287,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 	  if (!checkPowerGood()){
+		  //TODO: PowerGood as interrupts, or moving power up sequencing into a state machine.
 		  powerDownSequence();
 		  //TODO: ERROR LED
 //		  HAL_PWR_EnterSHUTDOWNMode();
@@ -298,19 +361,19 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV1;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
-  hadc1.Init.ScanConvMode = ADC_SCAN_DISABLE;
+  hadc1.Init.ScanConvMode = ADC_SCAN_ENABLE;
   hadc1.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
   hadc1.Init.LowPowerAutoWait = DISABLE;
   hadc1.Init.LowPowerAutoPowerOff = DISABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
-  hadc1.Init.NbrOfConversion = 1;
+  hadc1.Init.NbrOfConversion = 2;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
   hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc1.Init.DMAContinuousRequests = DISABLE;
   hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
-  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_1CYCLE_5;
-  hadc1.Init.SamplingTimeCommon2 = ADC_SAMPLETIME_1CYCLE_5;
+  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_7CYCLES_5;
+  hadc1.Init.SamplingTimeCommon2 = ADC_SAMPLETIME_7CYCLES_5;
   hadc1.Init.OversamplingMode = DISABLE;
   hadc1.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_HIGH;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
@@ -323,6 +386,15 @@ static void MX_ADC1_Init(void)
   sConfig.Channel = ADC_CHANNEL_0;
   sConfig.Rank = ADC_REGULAR_RANK_1;
   sConfig.SamplingTime = ADC_SAMPLINGTIME_COMMON_1;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure Regular Channel
+  */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = ADC_REGULAR_RANK_2;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
@@ -570,7 +642,7 @@ static void MX_LPUART1_UART_Init(void)
 
   /* USER CODE END LPUART1_Init 1 */
   hlpuart1.Instance = LPUART1;
-  hlpuart1.Init.BaudRate = 209700;
+  hlpuart1.Init.BaudRate = 115200;
   hlpuart1.Init.WordLength = UART_WORDLENGTH_8B;
   hlpuart1.Init.StopBits = UART_STOPBITS_1;
   hlpuart1.Init.Parity = UART_PARITY_NONE;
@@ -662,30 +734,48 @@ static void MX_GPIO_Init(void)
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOF_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
   __HAL_RCC_GPIOE_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOC, CFG_RCW_SRC0_D_Pin|CFG_RCW_SRC1_D_Pin|CFG_RCW_SRC2_D_Pin|CFG_RCW_SRC3_D_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOC, CFG_RCW_SRC0_D_Pin|CFG_RCW_SRC1_D_Pin|CFG_RCW_SRC2_D_Pin|CFG_RCW_SRC3_D_Pin
+                          |UEFI_SDA_Pin|CFG_ENABLE_N_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(MAIN_PWR_EN_GPIO_Port, MAIN_PWR_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOE, STATUS_LED1_18_Pin|STATUS_LED2_18_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOE, STATUS_LED1_GREEN_Pin|STATUS_LED2_RED_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOD, _12V0P_EN_Pin|_5V0P_EN_Pin|CPU_3V3P_EN_Pin|PMIC_EN_Pin
-                          |SYS_CLK_EN_MCU_Pin, GPIO_PIN_RESET);
+                          |MCU_RS422_EN_Pin|SYS_CLK_EN_MCU_Pin|UEFI_CPU_EN_Pin|UEFI_CPU_WP_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, MCU_PORESET_B_Pin|MCU_HRESET_B_Pin|MCU_RESET_REQ_B_Pin|MCU_DRR4_RST_N_Pin
                           |MCU_eMMC_RST_N_Pin|MCU_NOR_RST_N_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : CFG_RCW_SRC0_D_Pin CFG_RCW_SRC1_D_Pin CFG_RCW_SRC2_D_Pin CFG_RCW_SRC3_D_Pin */
-  GPIO_InitStruct.Pin = CFG_RCW_SRC0_D_Pin|CFG_RCW_SRC1_D_Pin|CFG_RCW_SRC2_D_Pin|CFG_RCW_SRC3_D_Pin;
+  /*Configure GPIO pins : CFG2_Pin SNS_I2C_ALERT_Pin UEFI_SCL_Pin PUSH_BUTTON_Pin
+                           CFG1_Pin */
+  GPIO_InitStruct.Pin = CFG2_Pin|SNS_I2C_ALERT_Pin|UEFI_SCL_Pin|PUSH_BUTTON_Pin
+                          |CFG1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : MCU_nRST_Pin */
+  GPIO_InitStruct.Pin = MCU_nRST_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(MCU_nRST_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : CFG_RCW_SRC0_D_Pin CFG_RCW_SRC1_D_Pin CFG_RCW_SRC2_D_Pin CFG_RCW_SRC3_D_Pin
+                           UEFI_SDA_Pin CFG_ENABLE_N_Pin */
+  GPIO_InitStruct.Pin = CFG_RCW_SRC0_D_Pin|CFG_RCW_SRC1_D_Pin|CFG_RCW_SRC2_D_Pin|CFG_RCW_SRC3_D_Pin
+                          |UEFI_SDA_Pin|CFG_ENABLE_N_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
@@ -712,20 +802,32 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(_5V0P_PG_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : STATUS_LED1_18_Pin STATUS_LED2_18_Pin */
-  GPIO_InitStruct.Pin = STATUS_LED1_18_Pin|STATUS_LED2_18_Pin;
+  /*Configure GPIO pins : STATUS_LED1_GREEN_Pin STATUS_LED2_RED_Pin */
+  GPIO_InitStruct.Pin = STATUS_LED1_GREEN_Pin|STATUS_LED2_RED_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOE, &GPIO_InitStruct);
 
   /*Configure GPIO pins : _12V0P_EN_Pin _5V0P_EN_Pin CPU_3V3P_EN_Pin PMIC_EN_Pin
-                           SYS_CLK_EN_MCU_Pin */
+                           MCU_RS422_EN_Pin SYS_CLK_EN_MCU_Pin UEFI_CPU_EN_Pin UEFI_CPU_WP_Pin */
   GPIO_InitStruct.Pin = _12V0P_EN_Pin|_5V0P_EN_Pin|CPU_3V3P_EN_Pin|PMIC_EN_Pin
-                          |SYS_CLK_EN_MCU_Pin;
+                          |MCU_RS422_EN_Pin|SYS_CLK_EN_MCU_Pin|UEFI_CPU_EN_Pin|UEFI_CPU_WP_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : PMIC_INTB_Pin PMIC_POR_B_Pin MCU_THERMAL_ERR_Pin CFG3_Pin */
+  GPIO_InitStruct.Pin = PMIC_INTB_Pin|PMIC_POR_B_Pin|MCU_THERMAL_ERR_Pin|CFG3_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : MCU_CPU_GPIO0_Pin MCU_CPU_GPIO1_Pin MCU_WATCHDOG_PULSE_Pin */
+  GPIO_InitStruct.Pin = MCU_CPU_GPIO0_Pin|MCU_CPU_GPIO1_Pin|MCU_WATCHDOG_PULSE_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
   /*Configure GPIO pins : MCU_PORESET_B_Pin MCU_HRESET_B_Pin MCU_RESET_REQ_B_Pin MCU_DRR4_RST_N_Pin
