@@ -195,17 +195,18 @@ GPIO_PinState checkPowerGood(){
 
 void RCW(enum SUPERVISOR_STATE PinState){
 	static unsigned char ttable[]={0x0, 0x8, 0x9, 0xa, 0xd, 0xf, 0x00, 0x00};
-	unsigned char dipState = 0xf; //When the power up procedure is finished, and the RCW is not needed
-	                              //all the pins are set to 1.
-
+	unsigned char RCW;
 	if(PinState == S_ASSERT ){
-		dipState =   HAL_GPIO_ReadPin(CFG1_GPIO_Port, CFG1_Pin) \
+		unsigned char dipState =   HAL_GPIO_ReadPin(CFG1_GPIO_Port, CFG1_Pin) \
 								 | HAL_GPIO_ReadPin(CFG2_GPIO_Port, CFG2_Pin) << 1 \
 								 | HAL_GPIO_ReadPin(CFG3_GPIO_Port, CFG3_Pin) << 2;
+		RCW = ttable[dipState];
+		log_printf("DipSwitch state: 0x%x \n", dipState);
 	}
-
-    unsigned char RCW = ttable[dipState];
-    log_printf("DipSwitch state: 0x%x \n", dipState);
+	else{
+		RCW = 0b1111; //When the power up procedure is finished, and the RCW is not needed
+                      //all the pins are set to 1
+	}
     log_printf("RCW: 0x%x \n", RCW);
 
 #define GET_BIT(c, n) (((c) >> (n)) & 1)
