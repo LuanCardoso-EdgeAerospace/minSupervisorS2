@@ -77,102 +77,102 @@ enum SUPERVISOR_STATE { S_ASSERT, S_RELEASE };
 #define UART_LOG(...) /*Should use LPUART1*/
 
 void powerUpSequence(){
-  const int POWER_GOOD_MAX_DELAY = 100; //ms
+  const int POWER_GOOD_MAX_DELAY = 1000; // 100; //ms
 
-  log_printf("Power up sequence started with %d ms until HCF\n", POWER_GOOD_MAX_DELAY);
+  log_printf("Power up sequence started with %d ms until HCF \r\n", POWER_GOOD_MAX_DELAY);
 
-	log_printf("Press button to enable Main Power\n");
+	log_printf("Press button to enable Main Power\r\n");
   waitBtnPress();
   HAL_GPIO_WritePin(MAIN_PWR_EN_GPIO_Port, MAIN_PWR_EN_Pin, GPIO_PIN_SET); 
-  log_printf("Main power on; PG not implemented, using max delay\n"); 
+  log_printf("Main power on; PG not implemented, using max delay \r\n");
   HAL_Delay(POWER_GOOD_MAX_DELAY);
   //read voltage from ADC to confirm 12V rail is up.
-  log_printf("> IN_VOL_MEAS = %d\n", ADC_IN0());
-  log_printf("> I_SENSE = %d\n", ADC_IN1());
+  log_printf("> IN_VOL_MEAS = %d\r\n", ADC_IN0());
+  log_printf("> I_SENSE = %d\r\n", ADC_IN1());
 
 
-  log_printf("Press button to enable 12V Power\n");
+  log_printf("Press button to enable 12V Power\r\n");
   waitBtnPress();
   HAL_GPIO_WritePin(_12V0P_EN_GPIO_Port, _12V0P_EN_Pin, GPIO_PIN_SET);     
-  log_printf("12V  power on; waiting for PowerGood signal\n"); 
+  log_printf("12V  power on; waiting for PowerGood signal\r\n");
   if (!waitSignalTimeout(_12V0P_EN_GPIO_Port, MAIN_12V0P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
-	  log_printf("timeout on MAIN_12V0P_PG! \n HCF!\n"); HCF();
+	  log_printf("timeout on MAIN_12V0P_PG! \r\n HCF!\r\n"); HCF();
   } else {
-	  log_printf("MAIN_12V0P_PG asserted\n");
+	  log_printf("MAIN_12V0P_PG asserted\r\n");
   }
 
 
-  log_printf("Press button to enable 3V3 Power\n");
+  log_printf("Press button to enable 3V3 Power\r\n");
   waitBtnPress();
   HAL_GPIO_WritePin(CPU_3V3P_EN_GPIO_Port, CPU_3V3P_EN_Pin, GPIO_PIN_SET); 
-  log_printf("3V3  power on; waiting for PowerGood signal\n"); 
+  log_printf("3V3  power on; waiting for PowerGood signal\r\n");
   if (!waitSignalTimeout(CPU_3V3P_PG_GPIO_Port, CPU_3V3P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
-	  log_printf("timeout on CPU_3V3P_PG! \n HCF!\n"); HCF();
+	  log_printf("timeout on CPU_3V3P_PG! \r\n HCF!\r\n"); HCF();
   } else {
-	  log_printf("CPU_3V3P_PG asserted\n");
+	  log_printf("CPU_3V3P_PG asserted\r\n");
   }
 
 
-  log_printf("Press button to enable 5V Power\n");
+  log_printf("Press button to enable 5V Power\r\n");
   waitBtnPress();
   HAL_GPIO_WritePin(_5V0P_EN_GPIO_Port, _5V0P_EN_Pin, GPIO_PIN_SET);       
-  log_printf("5V   power on; waiting for PowerGood signal\n"); 
+  log_printf("5V   power on; waiting for PowerGood signal\r\n");
   if (!waitSignalTimeout(_5V0P_PG_GPIO_Port, _5V0P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
-	  log_printf("timeout on _5V0P_PG! \n HCF!\n"); HCF();
+	  log_printf("timeout on _5V0P_PG! \r\n HCF!\r\n"); HCF();
   } else {
-	  log_printf("_5V0P_PG asserted\n");
+	  log_printf("_5V0P_PG asserted\r\n");
   }
 
 
-  log_printf("Press button to enable PMIC Power\n");
+  log_printf("Press button to enable PMIC Power\r\n");
   waitBtnPress();
   HAL_GPIO_WritePin(PMIC_EN_GPIO_Port, PMIC_EN_Pin, GPIO_PIN_SET);         
-  log_printf("PMIC is enabled; waiting for PowerGood signal \n"); 
+  log_printf("PMIC is enabled; waiting for PowerGood signal \r\n");
   if (!waitSignalTimeout(PMIC_POR_B_GPIO_Port, PMIC_POR_B_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
-	  log_printf("timeout on PMIC_POR_B! \n HCF!\n"); HCF();
+	  log_printf("timeout on PMIC_POR_B! \r\n HCF!\r\n"); HCF();
   } else {
-	  log_printf("PMIC_POR_B asserted\n");
+	  log_printf("PMIC_POR_B asserted\r\n");
   }
 
   //-------------------------------------------------------------------------------------//
 
-  log_printf("Checking power good on automatic rails:\n");
+  log_printf("Checking power good on automatic rails:\r\n");
 
   if (!waitSignalTimeout(CPU_1V2P_PG_GPIO_Port, CPU_1V2P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
-	  log_printf("timeout on CPU_1V2P_PG! \n HCF!\n"); HCF();
+	  log_printf("timeout on CPU_1V2P_PG! \r\n HCF!\r\n"); HCF();
   } else {
-	  log_printf("CPU_1V2P_PG asserted\n");
+	  log_printf("CPU_1V2P_PG asserted\r\n");
   }
 
   if (!waitSignalTimeout(CPU_CORE_1V0P_PG_GPIO_Port, CPU_CORE_1V0P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
-	  log_printf("timeout on CPU_CORE_1V0P_PG! \n HCF!\n"); HCF();
+	  log_printf("timeout on CPU_CORE_1V0P_PG! \n HCF!\r\n"); HCF();
   } else {
-	  log_printf("CPU_CORE_1V0P_PG asserted\n");
+	  log_printf("CPU_CORE_1V0P_PG asserted\r\n");
   }
 
   if (!waitSignalTimeout(CPU_DDR_PG_GPIO_Port, CPU_DDR_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
-	  log_printf("timeout on CPU_DDR_PG! \n HCF!\n"); HCF();
+	  log_printf("timeout on CPU_DDR_PG! \r\n HCF!\r\n"); HCF();
   } else {
-	  log_printf("CPU_DDR_PG asserted\n");
+	  log_printf("CPU_DDR_PG asserted\r\n");
   }
 
-  log_printf("Power up sequence finished!\n");
+  log_printf("Power up sequence finished!\r\n");
 
 	return;
 }
 
 void powerDownSequence(){
 	/* Reverse the power up sequence */
-	log_printf("Power down started\n");
+	log_printf("Power down started\r\n");
 	const int POWER_DOWN_DELAY = 50; //ms
 	// WARN: Ordering of the powerdown is important!
-	HAL_GPIO_WritePin(PMIC_EN_GPIO_Port, PMIC_EN_Pin, GPIO_PIN_RESET);         log_printf("PMIC  disabled \n"); HAL_Delay(POWER_DOWN_DELAY);
-	HAL_GPIO_WritePin(CPU_3V3P_EN_GPIO_Port, CPU_3V3P_EN_Pin, GPIO_PIN_RESET); log_printf("3V3   power off\n"); HAL_Delay(POWER_DOWN_DELAY);
-	HAL_GPIO_WritePin(_5V0P_EN_GPIO_Port, _5V0P_EN_Pin, GPIO_PIN_RESET);       log_printf("5V    power off\n"); HAL_Delay(POWER_DOWN_DELAY);
-	HAL_GPIO_WritePin(_12V0P_EN_GPIO_Port, _12V0P_EN_Pin, GPIO_PIN_RESET);     log_printf("12V   power off\n"); HAL_Delay(POWER_DOWN_DELAY);
-	HAL_GPIO_WritePin(MAIN_PWR_EN_GPIO_Port, MAIN_PWR_EN_Pin, GPIO_PIN_RESET); log_printf("Main  power off\n"); HAL_Delay(POWER_DOWN_DELAY);
+	HAL_GPIO_WritePin(PMIC_EN_GPIO_Port, PMIC_EN_Pin, GPIO_PIN_RESET);         log_printf("PMIC  disabled \r\n"); HAL_Delay(POWER_DOWN_DELAY);
+	HAL_GPIO_WritePin(CPU_3V3P_EN_GPIO_Port, CPU_3V3P_EN_Pin, GPIO_PIN_RESET); log_printf("3V3   power off\r\n"); HAL_Delay(POWER_DOWN_DELAY);
+	HAL_GPIO_WritePin(_5V0P_EN_GPIO_Port, _5V0P_EN_Pin, GPIO_PIN_RESET);       log_printf("5V    power off\r\n"); HAL_Delay(POWER_DOWN_DELAY);
+	HAL_GPIO_WritePin(_12V0P_EN_GPIO_Port, _12V0P_EN_Pin, GPIO_PIN_RESET);     log_printf("12V   power off\r\n"); HAL_Delay(POWER_DOWN_DELAY);
+	HAL_GPIO_WritePin(MAIN_PWR_EN_GPIO_Port, MAIN_PWR_EN_Pin, GPIO_PIN_RESET); log_printf("Main  power off\r\n"); HAL_Delay(POWER_DOWN_DELAY);
 
-	log_printf("Power down sequence finished!\n");
+	log_printf("Power down sequence finished!\r\n");
 	return;
 }
 
@@ -201,13 +201,13 @@ void RCW(enum SUPERVISOR_STATE PinState){
 								 | HAL_GPIO_ReadPin(CFG2_GPIO_Port, CFG2_Pin) << 1 \
 								 | HAL_GPIO_ReadPin(CFG3_GPIO_Port, CFG3_Pin) << 2;
 		RCW = ttable[dipState];
-		log_printf("DipSwitch state: 0x%x \n", dipState);
+		log_printf("DipSwitch state: 0x%x \r\n", dipState);
 	}
 	else{
 		RCW = 0b1111; //When the power up procedure is finished, and the RCW is not needed
                       //all the pins are set to 1
 	}
-    log_printf("RCW: 0x%x \n", RCW);
+    log_printf("RCW: 0x%x \r\n", RCW);
 
 #define GET_BIT(c, n) (((c) >> (n)) & 1)
 #define RCW_BIT(c, n) ( GET_BIT(c, n)? GPIO_PIN_SET: GPIO_PIN_RESET)
@@ -296,7 +296,13 @@ int main(void)
   /*
    * Power up
    */
-  MCU_RST(S_ASSERT); log_printf("MCU reset signal asserted.");
+
+  //Enable the RS422 level shifter
+  HAL_GPIO_WritePin(MCU_RS422_EN_GPIO_Port, MCU_RS422_EN_Pin, GPIO_PIN_SET);
+  HAL_Delay(100);
+
+  MCU_RST(S_ASSERT);
+  log_printf("MCU reset signal asserted.\r\n");
   powerUpSequence();
   /*Set RCW*/
   RCW(S_ASSERT);

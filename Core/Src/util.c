@@ -12,7 +12,7 @@ extern UART_HandleTypeDef hlpuart1;
 extern ADC_HandleTypeDef hadc1;
 
 #ifndef LOG_UART_TIMEOUT_MS
-#define LOG_UART_TIMEOUT_MS 20
+#define LOG_UART_TIMEOUT_MS 100
 #endif
 
 #ifndef LOG_LINE_BUF
@@ -112,12 +112,13 @@ uint16_t ADC_IN1(){
 
 void HCF(void){
 /* Function to be called when you want to enter an infinite loop. Will blink the red LED */
-	log_printf("WARNING: An exception was caught! Power cycle necessary.");
 	const int onPeriod=100, offShort=200, offLong=600;
 	do{
-	REDON(onPeriod); HAL_Delay(offShort);
-	REDON(onPeriod); HAL_Delay(offLong);
+		REDON(onPeriod); HAL_Delay(offShort);
+		REDON(onPeriod); HAL_Delay(offLong);
 	}while(1);
+
+//	REDON(10000);
 
 #undef REDON
 }
