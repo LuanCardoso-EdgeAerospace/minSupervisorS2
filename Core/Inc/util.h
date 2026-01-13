@@ -26,6 +26,7 @@ void HCF(void);
 
 uint16_t ADC_IN0();
 uint16_t ADC_IN1();
+void reportADC();
 
 
 #endif /* INC_UTIL_H_ */

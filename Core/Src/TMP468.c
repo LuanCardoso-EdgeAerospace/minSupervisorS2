@@ -7,9 +7,9 @@
  */
 
 
+#include <TMP468.h>
 #include "main.h"
 #include "util.h"
-#include "thermal.h"
 
 #define TMP468_addr 0x48
 #define blockRead_addr 0x80

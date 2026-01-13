@@ -22,6 +22,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "util.h"
+#include "INA230.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -31,7 +32,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define VERSION "0.1 alpha"
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -76,27 +77,56 @@ enum SUPERVISOR_STATE { S_ASSERT, S_RELEASE };
 #define STEP_DELAY 200
 #define UART_LOG(...) /*Should use LPUART1*/
 
+void ina230write(uint16_t addr, uint8_t reg, uint16_t pData){
+  addr <<=1;
+  uint8_t data[2]={0};
+  data[0]=pData >> 8;
+  data[1]=pData & 0xff;
+  
+  HAL_I2C_Mem_Write(&hi2c3, addr, reg, 1, data, 2, 1000);
+}
+
+uint16_t ina230read(uint16_t addr, uint8_t reg){
+  addr <<=1;
+  uint8_t data[2]={0};
+  HAL_I2C_Mem_Read(&hi2c3, addr, reg, 1, data, 2, 1000);
+  uint16_t res = (data[0]<<8)|(data[1]);
+  return res;
+}
+
+void testINA230(uint8_t addr, uint16_t shuntResistance){
+	INA230_t target;
+	target = INA230_init(addr, 1, shuntResistance, INA230_SHUNT_ADC_CT_204, INA230_VBUS_ADC_CT_332, INA230_AVG_16, ina230write, ina230read);
+	INA230_start(target, INA230_MODE_CONTINOUS_ALL);
+	HAL_Delay(100);
+
+	uint16_t id = INA230_getID(target);
+	 int16_t bus = INA230_getVoltageBus(target);
+	 int16_t shunt = INA230_getVoltageShunt(target);
+	 int16_t current = INA230_getCurrent(target);
+	uint16_t callibration = INA230_getCalibration(target);
+	uint16_t power = INA230_getPower(target);
+	log_printf("INA230 id:0x%04x addr 0x%x bus:%5dmV shunt:%4duV A:%3dmA P:%4umW calibr:%u\r\n", id, addr, bus, shunt, current, power, callibration);
+	INA230_stop(target);
+}
+
 void powerUpSequence(){
   const int POWER_GOOD_MAX_DELAY = 1000; // 100; //ms
 
   log_printf("Power up sequence started with %d ms until HCF \r\n", POWER_GOOD_MAX_DELAY);
 
-	log_printf("Press button to enable Main Power\r\n");
-  waitBtnPress();
+//	log_printf("Press button to enable Main Power\r\n");
+//  waitBtnPress();
   HAL_GPIO_WritePin(MAIN_PWR_EN_GPIO_Port, MAIN_PWR_EN_Pin, GPIO_PIN_SET); 
   log_printf("Main power on; PG not implemented, using max delay \r\n");
   HAL_Delay(POWER_GOOD_MAX_DELAY);
-  //read voltage from ADC to confirm 12V rail is up.
-  log_printf("> IN_VOL_MEAS = %d\r\n", ADC_IN0());
-  log_printf("> I_SENSE = %d\r\n", ADC_IN1());
-
 
   log_printf("Press button to enable 12V Power\r\n");
   waitBtnPress();
   HAL_GPIO_WritePin(_12V0P_EN_GPIO_Port, _12V0P_EN_Pin, GPIO_PIN_SET);     
   log_printf("12V  power on; waiting for PowerGood signal\r\n");
   if (!waitSignalTimeout(_12V0P_EN_GPIO_Port, MAIN_12V0P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
-	  log_printf("timeout on MAIN_12V0P_PG! \r\n HCF!\r\n"); HCF();
+	  log_printf("[ERROR] Timeout on MAIN_12V0P_PG! \r\n HCF!\r\n"); HCF();
   } else {
 	  log_printf("MAIN_12V0P_PG asserted\r\n");
   }
@@ -107,7 +137,7 @@ void powerUpSequence(){
   HAL_GPIO_WritePin(CPU_3V3P_EN_GPIO_Port, CPU_3V3P_EN_Pin, GPIO_PIN_SET); 
   log_printf("3V3  power on; waiting for PowerGood signal\r\n");
   if (!waitSignalTimeout(CPU_3V3P_PG_GPIO_Port, CPU_3V3P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
-	  log_printf("timeout on CPU_3V3P_PG! \r\n HCF!\r\n"); HCF();
+	  log_printf("[ERROR] Timeout on CPU_3V3P_PG! \r\n HCF!\r\n"); HCF();
   } else {
 	  log_printf("CPU_3V3P_PG asserted\r\n");
   }
@@ -118,7 +148,7 @@ void powerUpSequence(){
   HAL_GPIO_WritePin(_5V0P_EN_GPIO_Port, _5V0P_EN_Pin, GPIO_PIN_SET);       
   log_printf("5V   power on; waiting for PowerGood signal\r\n");
   if (!waitSignalTimeout(_5V0P_PG_GPIO_Port, _5V0P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
-	  log_printf("timeout on _5V0P_PG! \r\n HCF!\r\n"); HCF();
+	  log_printf("[ERROR] Timeout on _5V0P_PG! \r\n HCF!\r\n"); HCF();
   } else {
 	  log_printf("_5V0P_PG asserted\r\n");
   }
@@ -129,35 +159,54 @@ void powerUpSequence(){
   HAL_GPIO_WritePin(PMIC_EN_GPIO_Port, PMIC_EN_Pin, GPIO_PIN_SET);         
   log_printf("PMIC is enabled; waiting for PowerGood signal \r\n");
   if (!waitSignalTimeout(PMIC_POR_B_GPIO_Port, PMIC_POR_B_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
-	  log_printf("timeout on PMIC_POR_B! \r\n HCF!\r\n"); HCF();
+	  log_printf("[ERROR] Timeout on PMIC_POR_B! \r\n HCF!\r\n"); HCF();
   } else {
 	  log_printf("PMIC_POR_B asserted\r\n");
   }
+
 
   //-------------------------------------------------------------------------------------//
 
   log_printf("Checking power good on automatic rails:\r\n");
 
   if (!waitSignalTimeout(CPU_1V2P_PG_GPIO_Port, CPU_1V2P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
-	  log_printf("timeout on CPU_1V2P_PG! \r\n HCF!\r\n"); HCF();
+	  log_printf("[ERROR] Timeout on CPU_1V2P_PG! \r\n HCF!\r\n");
+//	  HCF();
   } else {
 	  log_printf("CPU_1V2P_PG asserted\r\n");
   }
 
   if (!waitSignalTimeout(CPU_CORE_1V0P_PG_GPIO_Port, CPU_CORE_1V0P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
-	  log_printf("timeout on CPU_CORE_1V0P_PG! \n HCF!\r\n"); HCF();
+	  log_printf("[ERROR] Timeout on CPU_CORE_1V0P_PG! \n HCF!\r\n");
+//	  HCF();
   } else {
 	  log_printf("CPU_CORE_1V0P_PG asserted\r\n");
   }
 
   if (!waitSignalTimeout(CPU_DDR_PG_GPIO_Port, CPU_DDR_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
-	  log_printf("timeout on CPU_DDR_PG! \r\n HCF!\r\n"); HCF();
+	  log_printf("[ERROR] Timeout on CPU_DDR_PG! \r\n HCF!\r\n");
+//	  HCF();
   } else {
 	  log_printf("CPU_DDR_PG asserted\r\n");
   }
 
   log_printf("Power up sequence finished!\r\n");
 
+  reportADC();
+  testINA230(0x40, 2);
+  testINA230(0x41, 2);
+  testINA230(0x42, 4);
+  testINA230(0x43, 4);
+  testINA230(0x44, 4);
+  testINA230(0x45, 1);
+  testINA230(0x46, 2);
+  testINA230(0x47, 2);
+  testINA230(0x48, 1);
+  testINA230(0x49, 2);
+  testINA230(0x4a, 2);
+
+
+  	HCF(); //temporary stop
 	return;
 }
 
@@ -296,9 +345,14 @@ int main(void)
   /*
    * Power up
    */
-
   //Enable the RS422 level shifter
   HAL_GPIO_WritePin(MCU_RS422_EN_GPIO_Port, MCU_RS422_EN_Pin, GPIO_PIN_SET);
+  //Enable i_sense
+  HAL_GPIO_WritePin(DIAG_EN_GPIO_Port, DIAG_EN_Pin, GPIO_PIN_SET);
+  log_printf("\033[2J\033[H"); //clear and move cursor home
+  log_printf("Supervisor version " VERSION "\r\n");
+  log_printf("------------------------------\r\n\r\n");
+
   HAL_Delay(100);
 
   MCU_RST(S_ASSERT);
@@ -401,8 +455,8 @@ static void MX_ADC1_Init(void)
   hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
   hadc1.Init.DMAContinuousRequests = DISABLE;
   hadc1.Init.Overrun = ADC_OVR_DATA_PRESERVED;
-  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_7CYCLES_5;
-  hadc1.Init.SamplingTimeCommon2 = ADC_SAMPLETIME_7CYCLES_5;
+  hadc1.Init.SamplingTimeCommon1 = ADC_SAMPLETIME_160CYCLES_5;
+  hadc1.Init.SamplingTimeCommon2 = ADC_SAMPLETIME_160CYCLES_5;
   hadc1.Init.OversamplingMode = DISABLE;
   hadc1.Init.TriggerFrequencyMode = ADC_TRIGGER_FREQ_HIGH;
   if (HAL_ADC_Init(&hadc1) != HAL_OK)
@@ -774,7 +828,7 @@ static void MX_GPIO_Init(void)
                           |UEFI_SDA_Pin|CFG_ENABLE_N_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(MAIN_PWR_EN_GPIO_Port, MAIN_PWR_EN_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, MAIN_PWR_EN_Pin|DIAG_EN_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOE, STATUS_LED1_GREEN_Pin|STATUS_LED2_RED_Pin, GPIO_PIN_RESET);
@@ -810,12 +864,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : MAIN_PWR_EN_Pin */
-  GPIO_InitStruct.Pin = MAIN_PWR_EN_Pin;
+  /*Configure GPIO pins : MAIN_PWR_EN_Pin DIAG_EN_Pin */
+  GPIO_InitStruct.Pin = MAIN_PWR_EN_Pin|DIAG_EN_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(MAIN_PWR_EN_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pins : MAIN_12V0P_PG_Pin CPU_3V3P_PG_Pin CPU_1V2P_PG_Pin CPU_CORE_1V0P_PG_Pin
                            CPU_DDR_PG_Pin */

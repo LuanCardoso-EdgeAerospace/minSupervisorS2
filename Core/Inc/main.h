@@ -83,6 +83,8 @@ void Error_Handler(void);
 #define MCU_RS422_TX_GPIO_Port GPIOA
 #define MCU_RS422_RX_Pin GPIO_PIN_3
 #define MCU_RS422_RX_GPIO_Port GPIOA
+#define DIAG_EN_Pin GPIO_PIN_4
+#define DIAG_EN_GPIO_Port GPIOA
 #define SNS_I2C_SDA_Pin GPIO_PIN_6
 #define SNS_I2C_SDA_GPIO_Port GPIOA
 #define SNS_I2C_SCL_Pin GPIO_PIN_7

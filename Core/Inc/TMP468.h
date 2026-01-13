@@ -5,9 +5,9 @@
  *      Author: luan
  */
 
-#ifndef INC_THERMAL_H_
-#define INC_THERMAL_H_
+#ifndef INC_TMP468_H_
+#define INC_TMP468_H_
 
 
 
-#endif /* INC_THERMAL_H_ */
+#endif /* INC_TMP468_H_ */

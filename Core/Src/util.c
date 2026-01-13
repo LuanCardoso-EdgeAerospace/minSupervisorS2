@@ -44,6 +44,7 @@ void log_printf(const char *fmt, ...){
 
 //busywait for a button to be pressed
 void waitBtnPress(){
+# ifdef WAIT_BTN_PRESS
 	const int DEBOUNCE_DELAY = 20;
 	//red LED to signal
 	HAL_GPIO_WritePin(STATUS_LED2_RED_GPIO_Port, STATUS_LED2_RED_Pin, GPIO_PIN_SET);
@@ -56,6 +57,9 @@ void waitBtnPress(){
     }
 
 	HAL_GPIO_WritePin(STATUS_LED2_RED_GPIO_Port, STATUS_LED2_RED_Pin, GPIO_PIN_RESET);
+#else
+	return;
+#endif //WAIT_BTN_PRESS
 }
 
 int waitSignalTimeout(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin, GPIO_PinState State, uint32_t TimeoutMs){
@@ -72,7 +76,7 @@ uint16_t ADC_IN0(){
 	ADC_ChannelConfTypeDef sConfig = {0};
 	sConfig.Channel = ADC_CHANNEL_0;
 	sConfig.Rank = ADC_REGULAR_RANK_1;
-	sConfig.SamplingTime = ADC_SAMPLINGTIME_COMMON_1;
+	sConfig.SamplingTime = ADC_SAMPLETIME_39CYCLES_5;
 	if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
 	{
 	Error_Handler();
@@ -90,7 +94,7 @@ uint16_t ADC_IN1(){
 	ADC_ChannelConfTypeDef sConfig = {0};
 	sConfig.Channel = ADC_CHANNEL_1;
 	sConfig.Rank = ADC_REGULAR_RANK_1;
-	sConfig.SamplingTime = ADC_SAMPLINGTIME_COMMON_1;
+	sConfig.SamplingTime = ADC_SAMPLETIME_39CYCLES_5;
 	if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
 	{
 	Error_Handler();
@@ -103,6 +107,31 @@ uint16_t ADC_IN1(){
 
     return value;
 }
+
+void reportADC(){  //read voltage from ADC to confirm 12V rail is up.
+	  uint16_t IN_VOL_MEAS_RAW = ADC_IN0();
+	  uint16_t I_SENSE_RAW = ADC_IN1();
+
+	  //apply conversion
+	  /*
+	   * convert measurement from the ADC to volts:
+	   * avdc = adcVal/(2^BIT_RESOLUTION -1) * VDDA
+	   *
+	   * Apply the inverse of the voltage divier
+	   *
+	   * voltage =  (100k+4.7k)/4.7k * vadc
+	   */
+	  uint16_t milvoltage = IN_VOL_MEAS_RAW*17.9518;
+
+	  log_printf("> IN_VOL_MEAS = %d mV (%d adc) \r\n", milvoltage, IN_VOL_MEAS_RAW);
+
+	  /*
+	   *
+	   */
+	  uint16_t amps = I_SENSE_RAW * 0.531337; //(x/(2^12 - 1)×3.3)*(1200/1820)*1000
+	  log_printf("> I_SENSE = %d mA (%d raw) \r\n", amps, I_SENSE_RAW );
+}
+
 
 #define REDON(n) do{ \
 					 HAL_GPIO_WritePin(STATUS_LED2_RED_GPIO_Port, STATUS_LED2_RED_Pin, GPIO_PIN_SET); \
@@ -122,6 +151,7 @@ void HCF(void){
 
 #undef REDON
 }
+
 
 
 
