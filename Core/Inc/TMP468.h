@@ -32,8 +32,8 @@
 
 #define TMP468_REG_THERM_HYSTERESIS 0x38
 
-#define TMP468_REG_LOCAL_THERM2_LIMIT 0x39
-#define TMP468_REG_LOCAL_THERM1_LIMIT 0x3A
+#define TMP468_REG_LOCAL_THERM1_LIMIT 0x39
+#define TMP468_REG_LOCAL_THERM2_LIMIT 0x3A
 
 /**************************** Remote Configuratoin ****************************/
 
@@ -52,7 +52,7 @@
 #define TMP468_REG_REMOTE3_OFFSET 0x50
 #define TMP468_REG_REMOTE3_IDEALITY_CORRECTION 0x51/*on datasheet represented by greek leter eta (η)*/
 #define TMP468_REG_REMOTE3_THERM1_LIMIT 0x52
-#define TMP468_REG_REMOTE3_THERM2_LIMIT 0x52
+#define TMP468_REG_REMOTE3_THERM2_LIMIT 0x53
 
 
 #define TMP468_REG_REMOTE4_OFFSET 0x58
@@ -83,6 +83,8 @@
 #define TMP468_REG_REMOTE8_IDEALITY_CORRECTION 0x79/*on datasheet represented by greek leter eta (η)*/
 #define TMP468_REG_REMOTE8_THERM1_LIMIT 0x7a
 #define TMP468_REG_REMOTE8_THERM2_LIMIT 0x7b
+
+#define TMP468_REG_REMOTE_IDEALITY_CORRECTION_pos 8U /*position to shift before writing*/
 
 #define TMP468_REG_BLOCKREAD_START 0x80 /* reading from this address trigger autoincrement of pointer register*/
 #define TMP468_REG_BLOCKREAD_END 0x88 /*inclusive*/
@@ -147,8 +149,8 @@
 #define TMP468_TEMP_RESOLUTION       0.0625f  /*!< 0.0625 degrees per bit*/
 
 /********************************* Constants **********************************/
-#define TMP468_LOCK         0xEB19
-#define TMP468_UNLOCK       0x5CA6
+#define TMP468_DO_UNLOCK       0xEB19
+#define TMP468_DO_LOCK         0x5CA6
 #define TMP468_LOCKED       0x8000
 #define TMP468_UNLOCKED     0x0000
 
@@ -186,7 +188,9 @@ uint16_t    TMP468_getTHERM1Status(TMP468_t target);
 uint16_t    TMP468_getTHERM2Status(TMP468_t target);
 uint16_t    TMP468_getOpenStatus(TMP468_t target);
 int         TMP468_isbusy(TMP468_t target);
-TMP468_t    TMP468_init(uint16_t addr, uint16_t conversionRate, uint16_t hysteresis, uint32_t THERM1, uint32_t THERM2);
+TMP468_t    TMP468_init(uint16_t addr, uint16_t conversionRate, uint16_t hysteresis, uint32_t THERM1, uint32_t THERM2, 
+                        void (*i2c_write)(uint16_t, uint8_t, uint16_t), 
+                        uint16_t (*i2c_read )(uint16_t, uint8_t) );
 void        TMP468_setRemoteEnabled(TMP468_t target, uint16_t flags);
 uint16_t    TMP468_getRemoteEnabled(TMP468_t target);
 void        TMP468_enableLocal(TMP468_t target);
@@ -196,7 +200,7 @@ void        TMP468_setHysteresis(TMP468_t target, uint16_t hysteresis);
 int16_t     TMP468_getThermlimit(TMP468_t target, int idx, int thermSelect);
 void        TMP468_setThermLimit(TMP468_t target, int idx, int16_t thermlimit, int thermSelect);
 void        TMP468_disableTherm(TMP468_t target, int idx, int thermSelect);
-void        TMP468_configRemote(TMP468_t target, int idx, uint32_t offset, int8_t eta, uint32_t THERM1, uint32_t THERM2);
+void        TMP468_configRemote(TMP468_t *target, int idx, uint32_t offset, int8_t eta, uint32_t THERM1, uint32_t THERM2);
 void        TMP468_wakeup(TMP468_t target);
 void        TMP468_sleep(TMP468_t target);
 void        TMP468_lock(TMP468_t target);

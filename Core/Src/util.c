@@ -18,6 +18,8 @@ extern ADC_HandleTypeDef hadc1;
 #ifndef LOG_LINE_BUF
 #define LOG_LINE_BUF 128 //buffer for writing. Try to not make writes too long
 #endif
+
+#define WAIT_BTN_PRESS
 /* Hook points: you will replace these later with DMA/ring-buffer code */
 static void log_backend_write_blocking(const uint8_t *p, uint16_t n) {
   if (n == 0) return;

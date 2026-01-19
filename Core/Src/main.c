@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include "util.h"
 #include "INA230.h"
+#include "TMP468.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -110,6 +111,44 @@ void testINA230(uint8_t addr, uint16_t shuntResistance){
 	INA230_stop(target);
 }
 
+void TMP468write(uint16_t addr, uint8_t reg, uint16_t pData){
+  addr <<=1;
+  uint8_t data[2]={0};
+  data[0]=pData >> 8;
+  data[1]=pData & 0xff;
+  
+  HAL_I2C_Mem_Write(&hi2c2, addr, reg, 1, data, 2, 1000);
+}
+
+uint16_t TMP468read(uint16_t addr, uint8_t reg){
+  addr <<=1;
+  uint8_t data[2]={0};
+  HAL_I2C_Mem_Read(&hi2c2, addr, reg, 1, data, 2, 1000);
+  uint16_t res = (data[0]<<8)|(data[1]);
+  return res;
+}
+
+void testTMP469(void){
+	TMP468_t target  = TMP468_init(0x48, TMP468_CONVERSION_RATE_CONTINUOUS, 0, 255.5, 255.5,
+					 TMP468write, TMP468read);
+
+
+//	uint16_t mid = target.i2c_read(target.addr, TMP468_REG_MANID);
+//	uint16_t did = target.i2c_read(target.addr, TMP468_REG_DEVID);
+//	log_printf("TI instruments TMP469 mid:%x did:%d \r\n", mid, did);
+
+	TMP468_unlock(target);
+
+	do{
+		   for (int i = 0; i<9; i++){
+			   log_printf("ch%d->%5d  ", i, TMP468_getRemoteTemperature(target, i));
+		   }
+		   log_printf("\r");
+//		   HAL_Delay(100);
+	}while(0);
+
+}
+
 void powerUpSequence(){
   const int POWER_GOOD_MAX_DELAY = 1000; // 100; //ms
 
@@ -122,7 +161,7 @@ void powerUpSequence(){
   HAL_Delay(POWER_GOOD_MAX_DELAY);
 
   log_printf("Press button to enable 12V Power\r\n");
-  waitBtnPress();
+  
   HAL_GPIO_WritePin(_12V0P_EN_GPIO_Port, _12V0P_EN_Pin, GPIO_PIN_SET);     
   log_printf("12V  power on; waiting for PowerGood signal\r\n");
   if (!waitSignalTimeout(_12V0P_EN_GPIO_Port, MAIN_12V0P_PG_Pin, GPIO_PIN_SET, POWER_GOOD_MAX_DELAY) ){
@@ -191,20 +230,26 @@ void powerUpSequence(){
   }
 
   log_printf("Power up sequence finished!\r\n");
+  HAL_Delay(2000);
+  log_printf("\033[2J"); //clear and
+  do{
+	  HAL_Delay(2000);
+	  log_printf("\033[H"); //move cursor home
+	  reportADC();
+	  testINA230(0x40, 2);
+	  testINA230(0x41, 2);
+	  testINA230(0x42, 4);
+	  testINA230(0x43, 4);
+	  testINA230(0x44, 4);
+	  testINA230(0x45, 1);
+	  testINA230(0x46, 2);
+	  testINA230(0x47, 2);
+	  testINA230(0x48, 1);
+	  testINA230(0x49, 2);
+	  testINA230(0x4a, 2);
 
-  reportADC();
-  testINA230(0x40, 2);
-  testINA230(0x41, 2);
-  testINA230(0x42, 4);
-  testINA230(0x43, 4);
-  testINA230(0x44, 4);
-  testINA230(0x45, 1);
-  testINA230(0x46, 2);
-  testINA230(0x47, 2);
-  testINA230(0x48, 1);
-  testINA230(0x49, 2);
-  testINA230(0x4a, 2);
-
+	  testTMP469();
+  }while(1);
 
   	HCF(); //temporary stop
 	return;
@@ -354,6 +399,7 @@ int main(void)
   log_printf("------------------------------\r\n\r\n");
 
   HAL_Delay(100);
+
 
   MCU_RST(S_ASSERT);
   log_printf("MCU reset signal asserted.\r\n");
